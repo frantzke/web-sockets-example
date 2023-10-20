@@ -1,22 +1,24 @@
 let socket;
+let webSocket;
 
 const connectToServer = () => {
   const userId = document.getElementById('userIdInput').value;
-  socket = io(`ws://localhost:8080?userId=${userId}`);
+  webSocket = new WebSocket(`ws://localhost:8080?userId=${userId}`);
 
-  document.getElementById('messageInput').style.display = "inline-block	";
-  document.getElementById('messageButton').style.display = "inline-block	";
-  document.getElementById('userIdInput').style.display = "none";
-  document.getElementById('connectButton').style.display = "none";
+  document.getElementById('messageInput').style.display = 'inline-block	';
+  document.getElementById('messageButton').style.display = 'inline-block	';
+  document.getElementById('userIdInput').style.display = 'none';
+  document.getElementById('connectButton').style.display = 'none';
 
-  socket.on('connect', () => {
-    console.log(`You've connected with id: ${socket.id}`);
-  });
-
-  socket.on('message', (text) => {
+  webSocket.onmessage = (event) => {
+    console.log(event);
     const el = document.createElement('li');
-    el.innerHTML = text;
+    el.innerHTML = event.data;
     document.querySelector('ul').appendChild(el);
+  };
+
+  webSocket.addEventListener("open", () => {
+    console.log("Connected to server");
   });
 };
 
@@ -26,7 +28,7 @@ connectButton.onclick = connectToServer;
 
 const emitText = () => {
   const text = messageInput.value;
-  socket.emit('message', text);
+  webSocket.send(text);
   messageInput.value = '';
 };
 
@@ -42,4 +44,3 @@ messageInput.style.display = 'none';
 const messageButton = document.getElementById('messageButton');
 messageButton.onclick = emitText;
 messageButton.style.display = 'none';
-

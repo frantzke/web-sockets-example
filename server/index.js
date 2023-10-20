@@ -1,9 +1,12 @@
+const WebSocketServer = require('ws').Server;
+const url = require('url');
 const express = require('express');
 const app = express();
-const http = require('http').createServer(app);
+const server = require('http').createServer(app);
+const wsServer = new WebSocketServer({ server: server });
+
 
 //Example Express Server
-const connections = [];
 let counter = 0;
 
 app.get('/increment', (req, res) => {
@@ -16,35 +19,44 @@ app.get('/decrement', (req, res) => {
   res.status(200).json({ counter });
 });
 
-app.get('/connections', (req, res) => {
-  res.status(200).json(connections);
+
+app.get('/clients', (req, res) => {
+  const clients = Array.from(wsServer.clients).map((client) => {
+    return { userId: client.userId, readyState: client.readyState };
+  });
+  console.log('app.get ~ clients:', clients);
+  res.status(200).json(clients);
 });
 
+const sendAll = (message) => {
+  wsServer.clients.forEach((client) => {
+    client.send(message);
+  });
+};
 
-const io = require('socket.io')(http, {
-  cors: { origin: '*' },
-});
+wsServer.on('connection', function (connection, request) {
+  const queryData = url.parse(request.url, true).query;
+  const userId = queryData.userId || 'Unknown';
 
-io.on('connection', (socket) => {
-  console.log('a user connected', socket.id);
-  connections.push(socket.id);
-  const userId = socket.handshake.query.userId || "Unknown";
-  io.emit("message", `User ${userId} connected`);
+  connection.userId = userId;
+  sendAll(`User ${userId} connected`);
 
-  socket.on('message', (message) => {
+  connection.send(`Private: Welcome to the chat ${userId}!`);
+
+  connection.on('message', (message) => {
     console.log(message);
-    io.emit('message', `${userId}: ${message}`);
-    // socket.broadcast.emit('message', `Broadcast Message`); //Send to everyone BUT this socket
+    sendAll(`${userId}: ${message}`);
   });
 
-  socket.join(userId);
-  io.to(userId).emit('message', `Private: Welcome to the chat ${userId}!`);
-
-  socket.on('disconnect', (reason) => {
+  connection.on('close', (reason) => {
     console.log('user disconnected');
     console.log('reason:', reason);
-    io.emit('message', `User ${userId} disconnected`);
+    sendAll(`User ${userId} disconnected`);
   });
+
+  connection.onerror = function () {
+    console.log('websocket error');
+  };
 });
 
-http.listen(8080, () => console.log('listening on http://localhost:8080'));
+server.listen(8080, () => console.log('listening on http://localhost:8080'));
